@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.9.0/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.9.0/addons/p5.dom.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.9.0/addons/p5.sound.min.js"></script>
+    <script src="https://unpkg.com/ml5@0.5.0/dist/ml5.min.js"></script>
+    
+    <style>
+        body, html, h1 {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #00AAE4;
+        }
+        #videoContainer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <div id="videoContainer">
+        <h1>Validación de identidad</h1>
+        <video id="video" width="640" height="480" autoplay></video>
+    </div>
+    <script>
+        let video;
+        let label = "Cargando...";
+        let classifier;
+        let modelURL = 'https://teachablemachine.withgoogle.com/models/QykaGsHHM/';
+        let confidence = 0;
+
+        function preload() {
+            classifier = ml5.imageClassifier(modelURL + 'model.json');
+        }
+
+        function setup() {
+            createCanvas(640, 480);
+            video = createCapture(VIDEO);
+            video.size(640, 480);
+            video.hide();
+            classifyVideo();
+        }
+
+        function classifyVideo() {
+            classifier.classify(video, gotResults);
+        }
+
+        function draw(results) {
+            background(0);
+            image(video, 0, 0);
+            textSize(32);
+            textAlign(CENTER, CENTER);
+            fill(255);
+            text(label, width / 2, height - 16);
+            
+
+            if (label !== "Nada" && label !== "Cargando..." && label !== "Otros") {
+                
+                fetch('/verify_user/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ username: label })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.found && label !== "Nada" && label !== "Cargando..." && label !== "Otros" && confidence>0.98) {
+                        if (label !== "Nada" && label !== "Cargando..." && label !== "Otros"){
+                            
+                            window.location.href = `/login/?username=${encodeURIComponent(label)}`;
+                        }
+                        
+                    } else {
+                        return
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+            } else {
+                label = "No encontrado";
+            }
+        }
+
+        function gotResults(error, results) {
+            if (error) {
+                console.error(error);
+                return;
+            }
+            console.log(results); 
+            label = results[0].label;
+            confidence = results[0].confidence;
+            console.log(confidence);
+            if (label == "Nada") {
+                label = "No encontrado";
+            }
+            classifyVideo();
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>
